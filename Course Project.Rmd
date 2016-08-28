@@ -1,0 +1,162 @@
+---
+title: "Course Project - Practical Machine Learning"
+author: "Juan M Hernandez"
+date: "27 de agosto de 2016"
+output: html_document
+---
+
+```{r, cache=TRUE, echo=FALSE}
+setwd("/Users/Jitter/Documents/Proyectos/R/7. Practical Machine Learning/")
+```
+
+# Synopsis
+This human activity recognition research has traditionally focused on discriminating between different activities, i.e. to predict "which" activity was performed at a specific point in time.
+
+The data is from six young health participants were asked to perform one set of 10 repetitions of the Unilateral Dumbbell Biceps Curl in five different fashions: exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E).
+
+Class A corresponds to the specified execution of the exercise, while the other 4 classes correspond to common mistakes.
+
+The data for this project come from this source: [http://groupware.les.inf.puc-rio.br/har].
+
+# Libraries Needed
+
+For the purpose of this paper, we need to load the following libraries.
+```{r, cache=TRUE, message=FALSE, warning=FALSE}
+library(caret)
+library(rpart)
+library(MASS)
+library(randomForest)
+library(klaR)
+```
+
+# Data Load
+
+The training data for this project are available here:
+
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv]
+
+The test data are available here:
+
+[https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv]
+
+When loading the data, we set the na.string to identify which data comes in that way.
+```{r, cache=TRUE}
+#download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", destfile = "pml-training.csv", method = "curl")
+#download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", destfile = "pml-testing.csv", method = "curl")
+
+dataTraining <- read.csv("pml-training.csv", header = T, na.strings=c("NA","#DIV/0!",""))
+dataTesting <- read.csv("pml-testing.csv", header = T, na.strings=c("NA","#DIV/0!",""))
+```
+
+# Data Cleaning
+
+Knowing that data comes with a high number of NA values in some columns, we leave out
+those columns from our training data. After that, we check that our data have complete cases.
+
+```{r, cache=TRUE}
+c1 <- as.data.frame(lapply(dataTraining, function(x) sum(is.na(x))/length(x) ))
+dataTrainingNoNA <- dataTraining[,which(colMeans(c1) < 0.5)]
+sum(complete.cases(dataTrainingNoNA)== FALSE)
+```
+
+# Getting data for training and testing
+
+Having our data ready, we create from the variable #dataTraining# two partitions, one
+with the 60% of the data for training the model, and the 40% left for testing the models created.
+
+```{r, cache=TRUE}
+inTrain <- createDataPartition(y = dataTrainingNoNA$classe, p = 0.6, list = F)
+training <- dataTrainingNoNA[inTrain, ]
+testing <- dataTrainingNoNA[-inTrain, ]
+```
+
+# Preparing data for training
+
+One step more before we start training the models. Due to the number of columns, there are some 
+columns that are highly correlated, and that could affect our model process in two ways, time 
+processing values that may not be necessary as predictors, and we are certain that the predictors
+left are the one we need to create our model.
+
+```{r, cache=TRUE}
+colNumeric <- data.frame(x = names(dataTrainingNoNA), y = sapply(training, class))
+colNumeric$x <- as.character(colNumeric$x)
+colNumeric$y <- as.character(colNumeric$y)
+
+colSelected <- colNumeric[colNumeric$y %in% c("integer", "numeric") & colNumeric$x != "X",]$x
+
+dataTrainingNoNA.colSelected <- dataTrainingNoNA[, colSelected]
+
+correlationMatrix <- cor(dataTrainingNoNA.colSelected)
+highlyCorrelatedColumns <- findCorrelation(correlationMatrix, cutoff=0.75)
+
+training.NoHighCorrelated <- dataTrainingNoNA.colSelected[, -highlyCorrelatedColumns]
+training.NoHighCorrelated$classe <- dataTrainingNoNA$classe
+
+str(training.NoHighCorrelated)
+```
+
+# Model Selection
+
+Now we are ready for creating some models. I have selected 4 models to process the data,
+some with preProcessing, and other with crossValidation.
+
+*I recommend to use the library #beepr# when running this models, to get a sound when it's 
+finished, now that for instance the model 4 took like 30 minutes to process.
+
+```{r, message=FALSE}
+set.seed(12345)
+```
+
+```{r, cache=TRUE}
+modFit <- train(classe ~ ., data = training.NoHighCorrelated, method="rpart"
+                , preProcess = c("center", "scale"))
+```
+
+```{r, cache=TRUE}
+modFit2 <- train(classe ~ ., data = training.NoHighCorrelated, method="lda")
+```
+
+```{r, cache=TRUE}
+modFit3 <- train(classe ~ ., method = "rf", data = training.NoHighCorrelated
+                 , trControl = trainControl(method = "cv"), number = 4)
+```
+
+
+## Testing our models
+
+Once we have our models done, we need to test those with our 40% (#variable 'testing'#) of our data stored
+in the variable dataTraining, to see how accurate is each model.
+
+```{r, cache=TRUE}
+pr1 <- predict(modFit, newdata = testing)
+pr2 <- predict(modFit2, newdata = testing)
+pr3 <- predict(modFit3, newdata = testing)
+```
+
+### Results
+
+#### Rpart Method
+```{r, cache=TRUE, message=FALSE}
+confusionMatrix(pr1, testing$classe)
+```
+#### LDA Method
+```{r, cache=TRUE, message=FALSE}
+confusionMatrix(pr2, testing$classe)
+```
+#### Random Forest Method
+```{r, cache=TRUE, message=FALSE}
+confusionMatrix(pr3, testing$classe)
+```
+
+# Conclusion
+
+Comparing the accuracy of each model process, we see in the results that "rpart"" had a 58.7% of accuracy, where it's been the less
+accurate of the models, having "linear discriminant analysis" with 57.3% and "random forest" with 100%.
+
+# Final Testing Result
+
+As a final test, I run the prediction with the random forest model on the dataTesting, and here are the results.
+
+```{r, message=FALSE}
+predict(modFit3, newdata = dataTesting)
+```
