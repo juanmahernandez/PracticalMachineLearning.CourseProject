@@ -2,7 +2,7 @@
 title: "Course Project - Practical Machine Learning"
 author: "Juan M Hernandez"
 date: "27 de agosto de 2016"
-output: html_document
+output: pdf_document
 ---
 
 ```{r, cache=TRUE, echo=FALSE}
@@ -150,8 +150,8 @@ confusionMatrix(pr3, testing$classe)
 
 # Conclusion
 
-Comparing the accuracy of each model process, we see in the results that "rpart"" had a 58.7% of accuracy, where it's been the less
-accurate of the models, having "linear discriminant analysis" with 57.3% and "random forest" with 100%.
+Comparing the accuracy of each model process, we see in the results that "linear discriminant analysis" had a 57.3% of accuracy, where it's been the less
+accurate of the models, having "rpart" with 58.7% and "random forest" with 100%.
 
 # Final Testing Result
 
